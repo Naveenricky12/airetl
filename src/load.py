@@ -1,6 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine
 import sys
+import os
 from config import Config
 from utils import setup_logger
 
@@ -40,9 +41,12 @@ def load_data_to_postgresql(df, table_name="weather_data"):
         sys.exit(1)
 
 def main():
+    output_dir = "/tmp" if os.environ.get("VERCEL") else "."
+    transformed_path = os.path.join(output_dir, "transformed_weather_data.csv")
+
     # Load the transformed data from the CSV file
     try:
-        df = pd.read_csv("transformed_weather_data.csv")
+        df = pd.read_csv(transformed_path)
     except FileNotFoundError:
         logger.error("Error: Transformed data file not found.")
         sys.exit(1)

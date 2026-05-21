@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import sys
+import os
 from config import Config
 from utils import setup_logger, clean_column_names
 
@@ -56,7 +57,7 @@ def transform_data(weather_data):
         df["wind_speed"] = pd.to_numeric(df["wind_speed"], errors='coerce')
 
         # Handle missing values
-        df.fillna(method='ffill', inplace=True)  # Forward fill missing values
+        df.ffill(inplace=True)  # Forward fill missing values
         df.dropna(inplace=True)  # Drop any remaining missing values
 
         # Clean column names
@@ -72,15 +73,19 @@ def transform_data(weather_data):
         sys.exit(1)
 
 def main():
+    output_dir = "/tmp" if os.environ.get("VERCEL") else "."
+    raw_data_path = os.path.join(output_dir, "weather_data.json")
+
     # Load the raw data
-    raw_data = load_data("weather_data.json")
+    raw_data = load_data(raw_data_path)
     
     # Transform the data
     transformed_data = transform_data(raw_data)
     
     # Save the transformed data
-    transformed_data.to_csv("transformed_weather_data.csv", index=False)
-    logger.info("Transformed data saved to transformed_weather_data.csv")
+    transformed_path = os.path.join(output_dir, "transformed_weather_data.csv")
+    transformed_data.to_csv(transformed_path, index=False)
+    logger.info(f"Transformed data saved to {transformed_path}")
 
 if __name__ == "__main__":
     main()

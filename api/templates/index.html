@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather & AQI ETL Dashboard</title>
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #09090b;
+      --card-bg: rgba(24, 24, 27, 0.6);
+      --border-color: rgba(63, 63, 70, 0.4);
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      
+      --accent-purple: #8b5cf6;
+      --accent-purple-glow: rgba(139, 92, 246, 0.15);
+      --accent-cyan: #06b6d4;
+      --accent-cyan-glow: rgba(6, 182, 212, 0.15);
+      
+      --state-success: #10b981;
+      --state-warning: #f59e0b;
+      --state-error: #ef4444;
+      
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Ambient glows */
+    .glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      filter: blur(150px);
+      z-index: -1;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .glow-1 {
+      top: -100px;
+      left: -100px;
+      background: var(--accent-purple);
+    }
+
+    .glow-2 {
+      bottom: -100px;
+      right: -100px;
+      background: var(--accent-cyan);
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+    }
+
+    /* Header styling */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1.5rem;
+    }
+
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .header-logo i {
+      font-size: 2rem;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-logo h1 {
+      font-family: var(--font-display);
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .header-logo span {
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 20px rgba(139, 92, 246, 0.25);
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(6, 182, 212, 0.4);
+    }
+
+    .btn:disabled {
+      background: var(--text-muted);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--text-muted);
+      box-shadow: none;
+    }
+
+    /* Cards */
+    .glass-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(139, 92, 246, 0.4);
+    }
+
+    /* Status Grid */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .status-card {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .status-icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+    }
+
+    .status-icon-purple {
+      background: var(--accent-purple-glow);
+      color: var(--accent-purple);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    .status-icon-cyan {
+      background: var(--accent-cyan-glow);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .status-info {
+      flex: 1;
+    }
+
+    .status-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+
+    .status-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-success {
+      background-color: var(--state-success);
+      box-shadow: 0 0 10px var(--state-success);
+    }
+
+    .dot-warning {
+      background-color: var(--state-warning);
+      box-shadow: 0 0 10px var(--state-warning);
+    }
+
+    /* Main Dashboard Layout */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-container {
+      margin-top: 1rem;
+      height: 320px;
+      position: relative;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Logs view */
+    .logs-panel {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.85rem;
+      background: #000;
+      color: #38bdf8;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      height: 250px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      margin-bottom: 0.5rem;
+      line-height: 1.4;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+    }
+
+    /* Data Table */
+    .table-section {
+      margin-bottom: 2.5rem;
+    }
+
+    .table-container {
+      overflow-x: auto;
+      margin-top: 1rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    th {
+      padding: 1rem;
+      border-bottom: 2px solid var(--border-color);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Spinner */
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <div class="container">
+    <header>
+      <div class="header-logo">
+        <i class="fa-solid fa-cloud-sun"></i>
+        <h2>Weather & AQI <span>ETL</span></h2>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="fetchStatus()">
+          <i class="fa-solid fa-arrows-rotate"></i> Refresh
+        </button>
+        <button class="btn" id="run-btn" onclick="runPipeline()">
+          <i class="fa-solid fa-play" id="run-icon"></i> <span id="run-text">Run Pipeline</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Status Bar -->
+    <div class="status-grid">
+      <div class="glass-card status-card">
+        <div class="status-icon-wrapper status-icon-purple">
+          <i class="fa-solid fa-key"></i>
+        </div>
+        <div class="status-info">
+          <div class="status-label">Weather API</div>
+          <div class="status-value" id="status-weather">
+            <span class="dot dot-warning"></span> Checking...
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card status-card">
+        <div class="status-icon-wrapper status-icon-cyan">
+          <i class="fa-solid fa-wind"></i>
+        </div>
+        <div class="status-info">
+          <div class="status-label">Air Quality API</div>
+          <div class="status-value" id="status-aqi">
+            <span class="dot dot-warning"></span> Checking...
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card status-card">
+        <div class="status-icon-wrapper status-icon-purple">
+          <i class="fa-solid fa-database"></i>
+        </div>
+        <div class="status-info">
+          <div class="status-label">Database</div>
+          <div class="status-value" id="status-db">
+            <span class="dot dot-warning"></span> Checking...
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card status-card">
+        <div class="status-icon-wrapper status-icon-cyan">
+          <i class="fa-solid fa-server"></i>
+        </div>
+        <div class="status-info">
+          <div class="status-label">Mode</div>
+          <div class="status-value" id="status-mode">
+            <span class="dot dot-warning"></span> Checking...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts & Logs Layout -->
+    <div class="dashboard-layout">
+      <div class="glass-card">
+        <h3>Temperature & Wind Speed Trends</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Daily values from the ETL database</p>
+        <div class="chart-container">
+          <canvas id="weatherChart"></canvas>
+        </div>
+      </div>
+
+      <div class="sidebar">
+        <div class="glass-card" style="flex: 1; display: flex; flex-direction: column;">
+          <h3 style="margin-bottom: 1rem;">System Execution Logs</h3>
+          <div class="logs-panel" id="logs-panel">
+            <div class="log-entry"><span class="log-time">[System]</span> Dashboard loaded. Ready.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="glass-card table-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3>Processed Weather Records</h3>
+        <span id="record-count" style="font-size: 0.9rem; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 0.25rem 0.75rem; border-radius: 20px; border: 1px solid var(--border-color);">0 rows</span>
+      </div>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Temperature (°C)</th>
+              <th>Feels Like (°C)</th>
+              <th>Humidity (%)</th>
+              <th>Precipitation (mm)</th>
+              <th>Wind Speed (km/h)</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-muted);">No records loaded. Run the pipeline to pull data.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let weatherChart = null;
+
+    async function fetchStatus() {
+      addLog("Fetching system configuration and status...", "System");
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        
+        // Update weather API status
+        const weatherEl = document.getElementById('status-weather');
+        if (data.keys.visual_crossing === "configured") {
+          weatherEl.innerHTML = '<span class="dot dot-success"></span> Active';
+        } else {
+          weatherEl.innerHTML = '<span class="dot dot-warning"></span> Simulated';
+        }
+
+        // Update AQI API status
+        const aqiEl = document.getElementById('status-aqi');
+        if (data.keys.air_visual === "configured") {
+          aqiEl.innerHTML = '<span class="dot dot-success"></span> Active';
+        } else {
+          aqiEl.innerHTML = '<span class="dot dot-warning"></span> Simulated';
+        }
+
+        // Update DB status
+        const dbEl = document.getElementById('status-db');
+        if (data.database === "connected") {
+          dbEl.innerHTML = '<span class="dot dot-success"></span> Connected';
+        } else {
+          dbEl.innerHTML = '<span class="dot dot-warning"></span> Simulated';
+        }
+
+        // Update mode
+        const modeEl = document.getElementById('status-mode');
+        modeEl.innerHTML = data.mode === "production" 
+          ? '<span class="dot dot-success"></span> Production' 
+          : '<span class="dot dot-warning"></span> Simulated';
+
+        addLog(`System status loaded. Mode: ${data.mode}.`, "System");
+        
+        // Fetch and load data
+        fetchData();
+
+      } catch (err) {
+        addLog(`Error fetching status: ${err.message}`, "Error");
+      }
+    }
+
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/data');
+        const data = await res.json();
+        
+        document.getElementById('record-count').innerText = `${data.length} rows`;
+        
+        const tableBody = document.getElementById('table-body');
+        if (!data || data.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No records loaded. Run the pipeline to pull data.</td></tr>';
+          return;
+        }
+
+        // Populate table
+        tableBody.innerHTML = data.map(row => `
+          <tr>
+            <td>${row.date}</td>
+            <td>${row.temperature}°C</td>
+            <td>${row.feels_like}°C</td>
+            <td>${row.humidity}%</td>
+            <td>${row.precipitation} mm</td>
+            <td>${row.wind_speed} km/h</td>
+          </tr>
+        `).join('');
+
+        // Populate Chart
+        renderChart(data);
+
+      } catch (err) {
+        addLog(`Error fetching records: ${err.message}`, "Error");
+      }
+    }
+
+    function renderChart(data) {
+      const ctx = document.getElementById('weatherChart').getContext('2d');
+      
+      const labels = data.map(d => d.date);
+      const temps = data.map(d => d.temperature);
+      const feelsLike = data.map(d => d.feels_like);
+      const windSpeed = data.map(d => d.wind_speed);
+
+      if (weatherChart) {
+        weatherChart.destroy();
+      }
+
+      weatherChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Temp (°C)',
+              data: temps,
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              tension: 0.4,
+              borderWidth: 3,
+              fill: true,
+              yAxisID: 'y'
+            },
+            {
+              label: 'Feels Like (°C)',
+              data: feelsLike,
+              borderColor: '#06b6d4',
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+              borderDash: [5, 5],
+              yAxisID: 'y'
+            },
+            {
+              label: 'Wind Speed (km/h)',
+              data: windSpeed,
+              borderColor: '#f59e0b',
+              backgroundColor: 'transparent',
+              tension: 0.4,
+              borderWidth: 2,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: '#f4f4f5',
+                font: { family: 'Outfit' }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(63, 63, 70, 0.2)' },
+              ticks: { color: '#a1a1aa', font: { family: 'Outfit' } }
+            },
+            y: {
+              grid: { color: 'rgba(63, 63, 70, 0.2)' },
+              ticks: { color: '#a1a1aa', font: { family: 'Outfit' } },
+              position: 'left',
+              title: { display: true, text: 'Temperature (°C)', color: '#f4f4f5' }
+            },
+            y1: {
+              grid: { drawOnChartArea: false },
+              ticks: { color: '#a1a1aa', font: { family: 'Outfit' } },
+              position: 'right',
+              title: { display: true, text: 'Wind Speed (km/h)', color: '#f4f4f5' }
+            }
+          }
+        }
+      });
+    }
+
+    async function runPipeline() {
+      const btn = document.getElementById('run-btn');
+      const icon = document.getElementById('run-icon');
+      const text = document.getElementById('run-text');
+
+      btn.disabled = true;
+      icon.className = "fa-solid fa-spinner spinner";
+      text.innerText = "Running ETL...";
+
+      addLog("Starting ETL Pipeline Execution...", "Pipeline");
+
+      try {
+        const res = await fetch('/api/run', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.status === "success") {
+          addLog(`Success: ${data.message}`, "Pipeline");
+          if (data.logs && data.logs.length) {
+            data.logs.forEach(l => addLog(l, "Logs"));
+          }
+          fetchData();
+        } else {
+          addLog(`Failed: ${data.error}`, "Error");
+        }
+      } catch (err) {
+        addLog(`Execution error: ${err.message}`, "Error");
+      } finally {
+        btn.disabled = false;
+        icon.className = "fa-solid fa-play";
+        text.innerText = "Run Pipeline";
+      }
+    }
+
+    function addLog(message, source = "System") {
+      const panel = document.getElementById('logs-panel');
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = "log-entry";
+      
+      let sourceColor = "#38bdf8"; // system cyan
+      if (source === "Pipeline") sourceColor = "#8b5cf6"; // purple
+      if (source === "Logs") sourceColor = "#a1a1aa"; // grey
+      if (source === "Error") sourceColor = "#ef4444"; // red
+
+      entry.innerHTML = `<span class="log-time">[${time}]</span> <span style="color: ${sourceColor}">${source}:</span> ${message}`;
+      panel.appendChild(entry);
+      panel.scrollTop = panel.scrollHeight;
+    }
+
+    // Initial status check
+    fetchStatus();
+  </script>
+</body>
+</html>

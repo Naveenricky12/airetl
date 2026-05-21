@@ -88,13 +88,17 @@ def main():
     air_quality_data = fetch_historical_air_quality_data(city, state, country, start_date, end_date)
 
     # Save the raw data to a file
-    with open("weather_data.json", "w") as file:
-        json.dump(weather_data, file, indent=4)
-    logger.info("Weather data saved to weather_data.json")
+    output_dir = "/tmp" if os.environ.get("VERCEL") else "."
+    weather_path = os.path.join(output_dir, "weather_data.json")
+    aq_path = os.path.join(output_dir, "historical_air_quality_data.json")
 
-    with open("historical_air_quality_data.json", "w") as file:
+    with open(weather_path, "w") as file:
+        json.dump(weather_data, file, indent=4)
+    logger.info(f"Weather data saved to {weather_path}")
+
+    with open(aq_path, "w") as file:
         json.dump(air_quality_data, file, indent=4)
-    logger.info("Historical air quality data saved to historical_air_quality_data.json")
+    logger.info(f"Historical air quality data saved to {aq_path}")
 
 if __name__ == "__main__":
     main()
